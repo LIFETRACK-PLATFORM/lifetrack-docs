@@ -45,13 +45,14 @@ graph TB
     subgraph Core["Microservicios"]
         AUTH[auth-service\nPostgreSQL + OAuth]
         USER[user-service\nPostgreSQL]
-        FAMILY[family / group\nPostgreSQL]
-        SPACE[space + task\nPostgreSQL + MongoDB]
+        REHAB[rehab-service\nPostgreSQL + S3]
         VAULT[vault-service\nAES-256-GCM]
-        FILE[file + media\nPostgreSQL + S3]
-        FIN[finance + career\nPostgreSQL + MongoDB]
-        BIZ[business-service\nPostgreSQL]
+        FIN[finance-service\nPostgreSQL]
+        MEDIA[media-service\nMongoDB + S3]
+        TASK[task-service\nPostgreSQL + MongoDB]
+        SOCIAL[social-service\nfamily + group · PostgreSQL]
         SCHED[schedule-service\nPostgreSQL + Redis]
+        CAREER[career-service\nMongoDB]
     end
 
     subgraph MSG["Mensajería"]
@@ -70,8 +71,8 @@ graph TB
     end
 
     WEB & MOB -->|HTTPS + REST| GATEWAY
-    GATEWAY -->|gRPC| AUTH & USER & FAMILY & SPACE & VAULT & FILE & FIN & BIZ & SCHED
-    AUTH & USER & SPACE & VAULT & FILE & FIN & SCHED -->|domain events| NATS
+    GATEWAY -->|gRPC| AUTH & USER & REHAB & VAULT & FIN & MEDIA & TASK & SOCIAL & SCHED & CAREER
+    AUTH & USER & REHAB & VAULT & FIN & MEDIA & TASK & SOCIAL & SCHED & CAREER -->|domain events| NATS
     NATS -->|consume| NOTIF & AUDIT & REPORT
     Core --> PROM
     GATEWAY --> OTEL
@@ -161,24 +162,38 @@ sequenceDiagram
 
 ## 🗂️ Módulos del Sistema
 
+Arquitectura consolidada en **13 microservicios de dominio** (bajado de un roadmap inicial de 17 tras un análisis de bounded contexts: `family-service` + `group-service` se fusionaron en `social-service` por tener el mismo modelo de datos; `space-service` se fusionó en `task-service` por alto acoplamiento; `business-service` y `file-service` se eliminaron por no tener un propósito definido ni un consumidor real — el storage de archivos se resuelve con una librería S3 compartida usada directo por cada dominio, no un servicio de red aparte).
+
+**Regla de construcción:** cada servicio se implementa solo cuando tiene un consumidor real esperándolo, no porque esté en este diagrama. Ver [Arquitectura → Fases de Desarrollo](./ARCHITECTURE.md#fases-de-desarrollo) para el orden.
+
 | Módulo | Tecnología | Estado |
 |--------|-----------|--------|
-| auth-service | NestJS + PostgreSQL + OAuth Google/GitHub | 🔧 En desarrollo |
-| user-service | NestJS + PostgreSQL + Push devices | 🔧 En desarrollo |
-| family-service | NestJS + PostgreSQL | 📋 Planificado |
-| group-service | NestJS + PostgreSQL | 📋 Planificado |
-| space-service | NestJS + PostgreSQL + MongoDB | 📋 Planificado |
-| task-service | NestJS + PostgreSQL | 📋 Planificado |
-| schedule-service | NestJS + PostgreSQL + Redis | 📋 Planificado |
-| file-service | NestJS + PostgreSQL + S3 | 📋 Planificado |
-| media-service | NestJS + MongoDB + S3 | 📋 Planificado |
-| finance-service | NestJS + PostgreSQL | 📋 Planificado |
-| vault-service | NestJS + PostgreSQL + AES-256-GCM | 📋 Planificado |
-| career-service | NestJS + MongoDB | 📋 Planificado |
-| business-service | NestJS + PostgreSQL + TypeORM | 📋 Planificado |
-| notification-service | NestJS + MongoDB + FCM + SMTP | 📋 Planificado |
-| audit-service | NestJS + DynamoDB | 📋 Planificado |
-| report-service | NestJS + MongoDB + Redis | 📋 Planificado |
+| auth-service | NestJS + PostgreSQL + OAuth Google/GitHub | ✅ Hecho |
+| user-service | NestJS + PostgreSQL + Push devices | ✅ Hecho |
+| api-gateway | NestJS + REST + JWT + Swagger | ✅ Hecho |
+| rehab-service | NestJS + PostgreSQL + S3 (fotos) | 🔧 Siguiente (Fase 2) |
+| vault-service | NestJS + PostgreSQL + AES-256-GCM | 📋 Planificado (Fase 3) |
+| finance-service | NestJS + PostgreSQL | 📋 Planificado (Fase 3) |
+| media-service | NestJS + MongoDB + S3 | 📋 Planificado (Fase 4) |
+| task-service | NestJS + PostgreSQL + MongoDB (plantillas) | 📋 Planificado (Fase 4, opcional) |
+| social-service *(family + group)* | NestJS + PostgreSQL | 📋 Planificado (Fase 5) |
+| schedule-service | NestJS + PostgreSQL + Redis | 📋 Planificado (Fase 5) |
+| career-service | NestJS + MongoDB | 📋 Planificado (Fase 5) |
+| notification-service | NestJS + MongoDB + FCM + SMTP | ⏸️ Pausado, sin necesidad concreta |
+| audit-service | NestJS + DynamoDB | ⏸️ Pausado, sin necesidad concreta |
+| report-service | NestJS + MongoDB + Redis | ⏸️ Pausado, sin necesidad concreta |
+
+---
+
+## 🧩 Módulos Opcionales por Usuario
+
+No todos los usuarios necesitan todos los módulos (ej. no todos llevan rehabilitación física). Cada módulo se activa explícitamente, no aparece solo:
+
+- **Catálogo de módulos**: lista de módulos existentes (`tasks`, `finance`, `rehab`, `vault`, etc.), visible para todos.
+- **`user_modules`** (en `user-service`): tabla `user_id + module_key + activo`, define qué módulos ve cada usuario en su dashboard/menú.
+- **Activación explícita**: un módulo nuevo no se agrega solo al `enabled_modules` de usuarios existentes — aparece en una sección "Descubrir módulos" y el usuario decide activarlo.
+- **Plantillas de onboarding**: combos predefinidos de módulos para casos de uso comunes (ej. plantilla "Recuperación deportiva" activa `rehab` de una vez — `rehab-service` maneja sus propias citas y fotos internamente, no depende de otros módulos), ofrecidas a usuarios nuevos en el registro.
+- **`rehab-service`**: dentro del módulo de rehabilitación, cada lesión/parte del cuerpo es un `recovery_plan` independiente (rodilla, hombro, etc.), cada uno con sus propios ejercicios, citas, medidas y fotos — un usuario puede tener varios en paralelo sin que se mezclen.
 
 ---
 

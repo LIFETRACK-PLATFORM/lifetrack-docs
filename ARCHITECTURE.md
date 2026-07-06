@@ -14,6 +14,7 @@
 | Contratos versionados | Protobuf `.proto` y schemas de eventos viven en `lifetrack-contracts`. |
 | Outbox Pattern | Eventos se guardan en la misma transacción del cambio. Worker los publica a NATS. |
 | Correlation ID | Todo request lleva un ID único que viaja por gRPC metadata y eventos NATS. |
+| Módulos opt-in | Cada módulo (`tasks`, `rehab`, `finance`, etc.) se activa por usuario en `user_modules` (user-service). Ningún módulo nuevo se habilita solo. |
 
 ---
 
@@ -35,19 +36,20 @@
 graph LR
     GW[api-gateway] --> AUTH[auth-service]
     GW --> USER[user-service]
-    GW --> FAMILY[family-service]
-    GW --> GROUP[group-service]
-    GW --> SPACE[space-service]
-    GW --> TASK[task-service]
-    GW --> SCHED[schedule-service]
-    GW --> FILE[file-service]
-    GW --> MEDIA[media-service]
-    GW --> FIN[finance-service]
+    GW --> REHAB[rehab-service]
     GW --> VAULT[vault-service]
+    GW --> FIN[finance-service]
+    GW --> MEDIA[media-service]
+    GW --> TASK[task-service]
+    GW --> SOCIAL[social-service]
+    GW --> SCHED[schedule-service]
     GW --> CAREER[career-service]
-    GW --> BIZ[business-service]
+    GW --> NOTIF[notification-service]
+    GW --> AUDIT[audit-service]
     GW --> REPORT[report-service]
 ```
+
+> `social-service` fusiona `family` + `group` (mismo modelo de datos). `space-service` se fusionó dentro de `task-service`. `business-service` y `file-service` se eliminaron del diseño — ver [README → Módulos del Sistema](./README.md#-módulos-del-sistema).
 
 ---
 
@@ -55,28 +57,31 @@ graph LR
 
 | DB | Servicios | ORM | Por qué |
 |----|-----------|-----|---------|
-| PostgreSQL | auth, user, family, group, space, task, schedule, file, finance, vault, business | Prisma / TypeORM | ACID, relacional, migraciones tipadas |
-| MongoDB | space (plantillas), career, report, notification, media | Mongoose | Esquemas flexibles, buen para read models |
+| PostgreSQL | auth, user, social, task, schedule, finance, vault, rehab | Prisma / TypeORM | ACID, relacional, migraciones tipadas |
+| MongoDB | task (plantillas), career, report, notification, media | Mongoose | Esquemas flexibles, buen para read models |
 | DynamoDB | audit-service | AWS SDK v3 | Append-only, sin servidor, escala automática |
 | Redis | api-gateway, schedule, vault (cache) | ioredis | In-memory, rate limit, locks |
-| S3 / MinIO | file-service, media-service | AWS SDK v3 | Object storage, presigned URLs |
+| S3 / MinIO | rehab-service, media-service | AWS SDK v3 | Object storage, presigned URLs — sin `file-service` intermedio, cada dominio sube directo |
 
 ---
 
 ## Fases de Desarrollo
 
-| Fase | Nombre | Entregable |
-|------|--------|-----------|
-| 0 | Fundación | contracts + infra local + NATS + Postgres + Redis + MinIO |
-| 1 | Identidad | auth-service + user-service + api-gateway + OAuth |
-| 2 | Grupos y Espacios | family + group + space-service con plantillas |
-| 3 | Productividad | task-service + schedule-service + notificaciones básicas |
-| 4 | Archivos y Media | file-service + media-service + vault-service |
-| 5 | Finanzas y Negocios | finance + business + career-service |
-| 6 | Observabilidad | audit + report + Prometheus + Grafana + OpenTelemetry |
-| 7 | Frontend | Next.js shell + microfrontends + React Query + Zustand |
-| 8 | CI/CD y Testing | GitHub Actions + Jenkins + SonarQube + BDD + TDD + E2E |
-| 9 | Cloud Real | EC2 → ECS Fargate → Kubernetes (EKS) |
+Orden de construcción real (no todo el diagrama se implementa de una vez — cada servicio se construye solo cuando tiene un consumidor real, ver [README → Módulos del Sistema](./README.md#-módulos-del-sistema)):
+
+| Fase | Nombre | Entregable | Estado |
+|------|--------|-----------|--------|
+| 0 | Fundación | contracts + infra local + NATS + Postgres + Redis + MinIO | ✅ Hecho |
+| 1 | Identidad | auth-service + user-service + api-gateway + OAuth | ✅ Hecho |
+| 2 | Rehab | rehab-service — caso de uso real que motiva el proyecto | 🔧 Actual |
+| 3 | Seguridad y Finanzas | vault-service + finance-service | 📋 Siguiente |
+| 4 | Productividad y Media | media-service + task-service (opcional) | 📋 Planificado |
+| 5 | Social y Extras | social-service (family+group) + schedule-service + career-service — casos de uso reales pero de menor prioridad | 📋 Planificado |
+| — | Pausado sin fecha | notification-service, report-service, audit-service — sin necesidad concreta identificada aún | ⏸️ Pausado |
+| 6 | Frontend | Next.js shell + microfrontends (o monolito modular al inicio) + React Query + Zustand | 📋 Planificado |
+| 7 | CI/CD y Testing | GitHub Actions + Jenkins + SonarQube + BDD + TDD + E2E | 🔧 Parcial (auth/user en Jenkins) |
+| 8 | Observabilidad | Prometheus + Grafana + OpenTelemetry (solo si se retoman notification/audit/report) | 📋 Planificado |
+| 9 | Cloud Real | EC2 → ECS Fargate → Kubernetes (EKS) | 📋 Planificado |
 
 ---
 

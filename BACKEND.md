@@ -45,6 +45,8 @@ lifetrack-{service}/
 
 ## Catálogo de Microservicios
 
+> Arquitectura consolidada en 13 microservicios (ver [Arquitectura → Fases de Desarrollo](./ARCHITECTURE.md#fases-de-desarrollo) para el orden de construcción). `social-service` fusiona `family` + `group`; `task-service` incluye lo que sería `space-service`. `business-service` y `file-service` se eliminaron del diseño. Debajo solo están specificados en detalle los servicios que ya tienen diseño de entidades — el resto se especifica cuando entren en fase de construcción.
+
 ### auth-service
 | | |
 |--|--|
@@ -73,6 +75,15 @@ lifetrack-{service}/
 | Entidades | `tasks`, `task_assignees`, `subtasks`, `task_comments`, `task_status_history` |
 | gRPC | `CreateTask`, `AssignTask`, `CompleteTask`, `ChangeStatus`, `AddComment`, `ListTasks` |
 | Eventos NATS | `task.created.v1`, `task.assigned.v1`, `task.completed.v1`, `task.overdue.v1` |
+
+### rehab-service *(nuevo)*
+| | |
+|--|--|
+| Función | Seguimiento de recuperación física — ejercicios, citas médicas, medidas de progreso y fotos, agrupados por `recovery_plan` (una lesión/parte del cuerpo a la vez, puede haber varias en paralelo) |
+| Storage | PostgreSQL + Prisma (datos) + S3 (fotos de progreso) |
+| Entidades | `recovery_plans(body_part, injury_type, surgery_date, status)`, `exercises(name, target_sets, target_reps, reference_media_url, phase)`, `exercise_logs(sets_done, reps_done, date)`, `appointments(date, provider, notes)`, `measurements(type, value, unit, date)`, `progress_photos(photo_url, date)` |
+| gRPC | `CreateRecoveryPlan`, `LogExercise`, `AddAppointment`, `AddMeasurement`, `AddProgressPhoto`, `ListRecoveryProgress` |
+| Eventos NATS | `rehab.plan_created.v1`, `rehab.exercise_logged.v1`, `rehab.appointment_added.v1` |
 
 ### media-service *(nuevo)*
 | | |
