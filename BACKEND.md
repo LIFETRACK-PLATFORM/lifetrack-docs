@@ -50,12 +50,13 @@ lifetrack-{service}/
 ### auth-service
 | | |
 |--|--|
-| Función | Registro, login, OAuth 2.0 (Google/GitHub/Apple), refresh tokens, reset password |
+| Función | Registro, login, refresh tokens con rotación, logout, forgot/reset password |
 | Storage | PostgreSQL + Prisma |
-| Entidades | `auth_accounts`, `refresh_sessions`, `login_attempts`, `oauth_connections` |
-| gRPC | `Register`, `Login`, `LoginWithOAuth`, `RefreshToken`, `ValidateToken`, `Logout` |
-| Eventos NATS | `auth.user_registered.v1`, `auth.oauth_linked.v1`, `auth.session_revoked.v1` |
-| Seguridad | Argon2id para hash. Refresh token rotación. Bloqueo tras 5 intentos. |
+| Entidades | `Credential`, `RefreshToken`, `PasswordResetToken` |
+| gRPC | `Register`, `Login`, `Refresh`, `Logout`, `ValidateToken`, `ForgotPassword`, `ResetPassword` |
+| Eventos NATS | `auth.user_registered.v1` |
+| Seguridad | bcrypt para hash. Refresh token rotación con detección de reuso. Bloqueo de cuenta tras N intentos fallidos (`LOGIN_MAX_ATTEMPTS`). Rate limiting por IP en `api-gateway` sobre login/forgot-password/reset-password. Reset de contraseña vía token de un solo uso enviado por email (Resend), revoca todas las sesiones activas. |
+| Backlog deliberado | OAuth 2.0 (Google/GitHub) y migración a Argon2id — evaluados y pospuestos explícitamente bajo YAGNI (ver `openspec/changes/archive/`), no son un pendiente por descuido. |
 
 ### vault-service
 | | |

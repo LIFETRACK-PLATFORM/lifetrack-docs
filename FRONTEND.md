@@ -27,6 +27,12 @@ Cada MFE es una aplicación independiente deployable. El shell las carga en tiem
 
 ---
 
+## Design System
+
+La guía de estilo ("Clinical Vitality") generada en Stitch vive en [`frontend/DESIGN.md`](../frontend/DESIGN.md) — colores, tipografía, spacing, roundness, elevación y reglas de componentes. `frontend/AGENTS.md` obliga a consultarla antes de tocar UI.
+
+---
+
 ## Stack Tecnológico
 
 | Tecnología | Uso |
