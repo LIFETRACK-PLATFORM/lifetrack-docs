@@ -72,7 +72,8 @@ Orden de construcción real (no todo el diagrama se implementa de una vez — ca
 | Fase | Nombre | Entregable | Estado |
 |------|--------|-----------|--------|
 | 0 | Fundación | contracts + infra local + NATS + Postgres + Redis + MinIO | ✅ Hecho |
-| 1 | Identidad | auth-service + user-service + api-gateway + OAuth | ✅ Hecho |
+| 1 | Identidad | auth-service + user-service + api-gateway | ✅ Hecho |
+| 1b | Login social | OAuth Google/GitHub (`add-oauth2-login`) | ✅ Hecho |
 | 2 | Rehab | rehab-service — caso de uso real que motiva el proyecto | 🔧 Actual |
 | 3 | Seguridad y Finanzas | vault-service + finance-service | 📋 Siguiente |
 | 4 | Productividad y Media | media-service + task-service (opcional) | 📋 Planificado |

@@ -52,11 +52,12 @@ lifetrack-{service}/
 |--|--|
 | Función | Registro, login, refresh tokens con rotación, logout, forgot/reset password |
 | Storage | PostgreSQL + Prisma |
-| Entidades | `Credential`, `RefreshToken`, `PasswordResetToken` |
-| gRPC | `Register`, `Login`, `Refresh`, `Logout`, `ValidateToken`, `ForgotPassword`, `ResetPassword` |
+| Entidades | `Credential`, `RefreshToken`, `PasswordResetToken`, `OAuthLinkToken` |
+| gRPC | `Register`, `Login`, `Refresh`, `Logout`, `ValidateToken`, `ForgotPassword`, `ResetPassword`, `LoginWithOAuth`, `LinkOAuthAccount` |
 | Eventos NATS | `auth.user_registered.v1` |
-| Seguridad | bcrypt para hash. Refresh token rotación con detección de reuso. Bloqueo de cuenta tras N intentos fallidos (`LOGIN_MAX_ATTEMPTS`). Rate limiting por IP en `api-gateway` sobre login/forgot-password/reset-password. Reset de contraseña vía token de un solo uso enviado por email (Resend), revoca todas las sesiones activas. |
-| Backlog deliberado | OAuth 2.0 (Google/GitHub) y migración a Argon2id — evaluados y pospuestos explícitamente bajo YAGNI (ver `openspec/changes/archive/`), no son un pendiente por descuido. |
+| Seguridad | bcrypt para hash. Refresh token rotación con detección de reuso. Bloqueo de cuenta tras N intentos fallidos (`LOGIN_MAX_ATTEMPTS`). Rate limiting por IP en `api-gateway` sobre login/forgot-password/reset-password y flujos OAuth. Reset de contraseña vía token de un solo uso enviado por email (Resend), revoca todas las sesiones activas. |
+| OAuth | Authorization Code + PKCE iniciado en `api-gateway` (`GET /auth/google`, `/auth/github`); intercambio de código y resolución de perfil en `auth-service` vía `OAuthProviderPort` (adapters Google/GitHub). Si el email OAuth coincide con una cuenta `LOCAL`, no hay merge automático: responde `ACCOUNT_LINK_REQUIRED` y el usuario confirma con password local en `POST /auth/link-account`. Cuentas solo-OAuth no tienen `passwordHash`; login local las rechaza con mensaje genérico. |
+| Backlog deliberado | Migración a Argon2id — evaluada y pospuesta bajo YAGNI, no es un pendiente por descuido. |
 
 ### vault-service
 | | |
@@ -67,6 +68,16 @@ lifetrack-{service}/
 | gRPC | `CreateVaultItem`, `GetEncryptedVaultItem`, `UpdateVaultItem`, `DeleteVaultItem` |
 | Eventos NATS | `vault.secret_created.v1`, `vault.secret_accessed.v1` — todo va a audit |
 | Seguridad | Frontend cifra con AES-256-GCM. Backend solo guarda el blob cifrado. |
+
+### finance-service *(nuevo)*
+| | |
+|--|--|
+| Función | Gestor de gastos e ingresos — cuentas, categorías, transacciones y presupuestos por período |
+| Storage | PostgreSQL + Prisma |
+| Entidades | `accounts(name, type, currency, balance)`, `categories(name, kind[INCOME\|EXPENSE], icon, color)`, `transactions(account_id, category_id, amount, kind, description, occurred_at)`, `budgets(category_id, amount, period_month, period_year)` |
+| gRPC | `CreateAccount`, `CreateTransaction`, `ListTransactions`, `CreateBudget`, `GetBudgetStatus`, `ListAccounts` |
+| Eventos NATS | `finance.transaction_created.v1`, `finance.budget_exceeded.v1` — consumido por `notification-service` |
+| Reglas | `balance` de la cuenta se recalcula por trigger/aplicación al crear/editar/borrar una transacción, no se guarda derivado sin control. `GetBudgetStatus` compara gasto acumulado del mes contra `budgets.amount` y dispara `finance.budget_exceeded.v1` si se supera. |
 
 ### task-service
 | | |

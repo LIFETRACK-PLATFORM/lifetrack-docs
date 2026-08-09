@@ -1,200 +1,98 @@
-# 🎨 Frontend y Microfrontend — LifeTrack OS
+# Frontend — LifeTrack OS
 
-> Para ver el contexto completo ir al [README principal](./README.md)
-
----
-
-## Arquitectura Microfrontend
-
-```mermaid
-graph TB
-    SHELL[shell — Next.js 14\nHost container · Auth guard · Routing global]
-
-    SHELL -->|Module Federation| MFE1[mfe-auth\nLogin · OAuth · Registro]
-    SHELL -->|Module Federation| MFE2[mfe-dashboard\nHome · Resumen global]
-    SHELL -->|Module Federation| MFE3[mfe-tasks\nTableros · Tareas]
-    SHELL -->|Module Federation| MFE4[mfe-vault\nBóveda AES-GCM]
-    SHELL -->|Module Federation| MFE5[mfe-finance\nGastos · Presupuestos]
-    SHELL -->|Module Federation| MFE6[mfe-media\nLinks · Videos]
-    SHELL -->|Module Federation| MFE7[mfe-career\nPostulaciones]
-    SHELL -->|Module Federation| MFE8[mfe-settings\nPerfil · Grupos]
-
-    SHARED[shared-ui\nDesign System · Storybook]
-    SHELL & MFE1 & MFE2 & MFE3 & MFE4 & MFE5 & MFE6 & MFE7 & MFE8 --> SHARED
-```
-
-Cada MFE es una aplicación independiente deployable. El shell las carga en tiempo de ejecución con **Module Federation (Webpack 5)**. Si un MFE falla, el resto sigue funcionando.
+> Contexto completo: [README principal](./README.md)
 
 ---
 
-## Design System
-
-La guía de estilo ("Clinical Vitality") generada en Stitch vive en [`frontend/DESIGN.md`](../frontend/DESIGN.md) — colores, tipografía, spacing, roundness, elevación y reglas de componentes. `frontend/AGENTS.md` obliga a consultarla antes de tocar UI.
-
----
-
-## Stack Tecnológico
+## Stack actual
 
 | Tecnología | Uso |
 |-----------|-----|
-| Next.js 14 App Router | Shell y MFEs principales — SSR, RSC, Server Actions, Middleware |
-| React 18 + TypeScript | UI library en todos los MFEs |
-| Module Federation | Carga de MFEs remotos en el shell en tiempo de ejecución |
-| React Query | Server state — cache inteligente, refetch, mutations |
-| Zustand | Client state — UI state, preferencias locales |
-| Tailwind CSS | Utility-first CSS en todo el sistema |
-| shadcn/ui | Componentes accesibles base (Radix UI) |
-| Framer Motion | Animaciones y microinteracciones |
-| React Hook Form + Zod | Formularios con validación tipada |
-| Storybook | Documentación visual del design system |
-| Playwright | Tests E2E en navegador real |
+| Next.js 16 (App Router) | App monolítica — auth, onboarding, rehab |
+| React 19 + TypeScript | UI |
+| Tailwind CSS v4 | Tokens y utilities en `frontend/src/app/globals.css` |
+| shadcn/ui (new-york) | Primitives accesibles (Radix) |
+| next-themes | Modo dark / light (`attribute="class"`) |
+| lucide-react | Iconografía (Nightframe) |
+| Framer Motion | (cuando se use) microinteracciones |
+| React Hook Form + Zod | Formularios tipados (cuando aplique) |
+
+La arquitectura microfrontend descrita históricamente queda fuera del código actual; el frontend vive en `frontend/` como una sola app Next.
 
 ---
 
-## Module Federation — Config del Shell
+## Design system — Nightframe
 
-```javascript
-// shell/next.config.js
-const { NextFederationPlugin } = require("@module-federation/nextjs-mf");
+Fuente de verdad:
 
-module.exports = {
-  webpack(config) {
-    config.plugins.push(new NextFederationPlugin({
-      name: "shell",
-      remotes: {
-        mfeTasks:   `mfeTasks@${process.env.MFE_TASKS_URL}/_next/static/chunks/remoteEntry.js`,
-        mfeVault:   `mfeVault@${process.env.MFE_VAULT_URL}/remoteEntry.js`,
-        mfeMedia:   `mfeMedia@${process.env.MFE_MEDIA_URL}/remoteEntry.js`,
-        mfeFinance: `mfeFinance@${process.env.MFE_FINANCE_URL}/_next/static/chunks/remoteEntry.js`,
-      },
-      shared: {
-        react: { singleton: true },
-        "react-dom": { singleton: true }
-      }
-    }));
-    return config;
-  }
-};
+- Reglas y tokens: [`frontend/DESIGN.md`](../frontend/DESIGN.md)
+- Referencia visual (light + dark): [`frontend/docs/design-system/nightframe-reference.html`](../frontend/docs/design-system/nightframe-reference.html)
+- Obligatorio para agentes: [`frontend/AGENTS.md`](../frontend/AGENTS.md)
+
+Nightframe reemplaza al sistema anterior ("Clinical Vitality"). Personalidad: oscura, minimalista y premium; profundidad por contraste de superficies (sin sombras duras); acento único violeta `#7C5CFF`.
+
+### Tokens clave
+
+- Superficies: `background`, `surface-1`…`surface-5`, `border`
+- Texto: `text-1`, `text-3`
+- Marca: `primary`, `primary-hover`, `primary-active`, `accent-tint`
+- Semánticos: `success`, `warning`, `error`
+- Tipografía: Space Grotesk (headings), Manrope (body), JetBrains Mono (métricas)
+- Tema: light en `:root`, dark bajo `.dark` — toggle con `ThemeToggle` / next-themes
+
+### Componentes UI
+
+Primitivos en `frontend/src/components/ui/` (button, input, card, dialog, badge, calendar, table, sheet, alert-dialog, etc.). Shell: `SideNav`, `BottomNav`, `ThemeToggle`. Iconos vía `shared/ui/Icon` (mapa lucide).
+
+### Loading states — Skeletons
+
+No se usa ninguna librería externa de skeleton/loading (`react-loading-skeleton`, `react-content-loader`, etc.). Alcanza con el primitivo `Skeleton` de shadcn/ui (`frontend/src/components/ui/skeleton.tsx`, `animate-pulse` + tokens Nightframe) — así el shimmer respeta los mismos colores/radios que el resto del design system en light y dark.
+
+Patrón: cuando un hook expone `loading`, el `return` temprano arma un placeholder que **reproduce la forma real del layout** (mismos contenedores, mismo split mobile/web con `md:hidden` / `hidden md:block`) en vez de un texto tipo "Cargando…" o un spinner centrado. Esto evita saltos de layout (CLS) cuando llegan los datos reales.
+
+```tsx
+if (loading) {
+  return <DashboardSkeleton />; // función local, misma estructura que el JSX real
+}
 ```
+
+Ejemplos: `ProfileView.tsx` (skeleton inline simple), `DashboardView.tsx` y `PlanDetailView.tsx` (componente `*Skeleton` local con variantes mobile/web).
+
+No usar `Skeleton` para acciones puntuales (guardar, enviar un form) — ahí corresponde texto de estado en el botón (`disabled` + `"Guardando…"`) o un ícono `progress_activity` con `animate-spin`, como ya se hace en botones de submit.
 
 ---
 
 ## Estado — React Query vs Zustand
 
+Cuando se introduzcan:
+
 ```
-Server state (datos de la API)  →  React Query
-Client state (UI, preferencias) →  Zustand
+Server state (API)  →  React Query
+Client state (UI)   →  Zustand
 
-Regla: NUNCA usar Zustand para datos del servidor.
-```
-
-```typescript
-// React Query — datos del servidor
-const { data: tasks } = useQuery({
-  queryKey: ["tasks", spaceId],
-  queryFn: () => api.tasks.list({ spaceId }),
-  staleTime: 30_000,
-});
-
-const createTask = useMutation({
-  mutationFn: api.tasks.create,
-  onSuccess: () => queryClient.invalidateQueries(["tasks", spaceId]),
-});
-
-// Zustand — estado del cliente
-const useUIStore = create((set) => ({
-  sidebarOpen: true,
-  activeSpaceId: null,
-  toggleSidebar: () => set(s => ({ sidebarOpen: !s.sidebarOpen })),
-}));
+Nunca usar Zustand para datos del servidor.
 ```
 
 ---
 
-## Vault — Cifrado en el Browser
+## Auth en el frontend
 
-```mermaid
-sequenceDiagram
-    participant U as Usuario
-    participant FE as Frontend (Browser)
-    participant BE as vault-service
-
-    U->>FE: master password + secreto
-    FE->>FE: Argon2id(password, salt) → clave 256 bits
-    FE->>FE: AES-256-GCM(secreto, clave, iv) → encrypted_blob
-    Note over FE: El secreto nunca sale del browser en texto plano
-    FE->>BE: { encrypted_blob, salt, iv }
-    BE-->>FE: 201 Created
-```
-
-```typescript
-// lib/vault-crypto.ts — solo corre en el cliente
-export async function encryptSecret(secret: string, key: CryptoKey) {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encoded = new TextEncoder().encode(secret);
-  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded);
-  return {
-    encrypted_blob: btoa(String.fromCharCode(...new Uint8Array(encrypted))),
-    iv: btoa(String.fromCharCode(...iv)),
-  };
-}
-```
-
-**Reglas de seguridad del mfe-vault:**
-- `ssr: false` — el cifrado ocurre solo en el cliente, nunca en el servidor
-- El master password NUNCA se guarda en localStorage ni cookies
-- Timeout automático: si el usuario está inactivo 5 minutos, se limpia de memoria
-- CSP estricta para prevenir XSS
+- Access / refresh en cookies httpOnly (vía auth-service / gateway)
+- Rutas públicas: login, register, forgot/reset password, confirm-email, link-account (vinculación OAuth)
+- Login social: botones Google/GitHub redirigen al `api-gateway` (`/auth/google`, `/auth/github`); tras callback exitoso el gateway setea cookies y redirige a `/onboarding`; si el email ya existe como cuenta local, redirige a `/link-account` para confirmar con password
+- Rutas autenticadas bajo `src/app/(authenticated)/` con guard de sesión
 
 ---
 
-## OAuth en el Frontend
+## Módulos UI actuales
 
-```typescript
-// Paso 1: redirect a Google
-const { redirectUrl } = await api.auth.getOAuthRedirectUrl("google");
-window.location.href = redirectUrl;
+| Módulo | Rutas / views |
+|--------|----------------|
+| Auth | Login, Register, Forgot/Reset, ConfirmEmail, LinkAccount (OAuth) |
+| Onboarding | Selección de módulos |
+| Rehab | Dashboard, PlanDetail + dialogs |
 
-// Paso 2: callback del servidor (Next.js route)
-// shell/src/app/auth/callback/google/page.tsx
-export default async function GoogleCallback({ searchParams }) {
-  const tokens = await authService.exchangeOAuthCode("google", searchParams.code);
-  // Token en cookie httpOnly — protegido contra XSS
-  cookies().set("access_token", tokens.accessToken, { httpOnly: true, secure: true });
-  redirect("/dashboard");
-}
-```
-
-**Gestión de tokens:**
-- Access token: cookie `httpOnly + Secure + SameSite=Strict` — nunca en localStorage
-- Refresh token: también cookie httpOnly. Se rota en cada uso.
-- Interceptor de axios: detecta 401 y hace refresh silencioso automático
-
----
-
-## Testing Frontend
-
-| Tipo | Herramienta | Qué testea |
-|------|-------------|-----------|
-| Unit | Vitest + React Testing Library | Componentes, hooks, stores |
-| Integration | Vitest + MSW (Mock Service Worker) | Flujos con API mock |
-| Visual | Storybook + Chromatic | Regresión visual de componentes |
-| E2E | Playwright | Flujos completos en navegador real |
-| Accesibilidad | axe-core + jest-axe | WCAG 2.1 AA |
-| Performance | Lighthouse CI | LCP, FID, CLS en cada deploy |
-
-### Ejemplo E2E — Playwright
-
-```typescript
-test("crear tarea desde el dashboard", async ({ page }) => {
-  await loginAs(page, "alice@test.com");
-  await page.goto("/spaces/sp-123/tasks");
-  await page.click("[data-testid=btn-new-task]");
-  await page.fill("[data-testid=input-task-title]", "Revisar PR de autenticación");
-  await page.click("[data-testid=btn-submit-task]");
-  await expect(page.locator("text=Revisar PR de autenticación")).toBeVisible();
-});
-```
+Módulos futuros (tasks, finance, vault, career) deben nacer ya con tokens Nightframe.
 
 ---
 
